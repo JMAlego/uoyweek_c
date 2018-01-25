@@ -1,9 +1,30 @@
+/**
+ * UoYWeek C
+ * Originally by Luke Moll
+ * Adapted from C++ to C by Jacob Allen
+*/
+
+/**
+ * Deal with Windows crying about deprecation.
+ */
+#ifdef _WIN32
+  #define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+
+/**
+ * Useful time constants to avoid magic numbers.
+ */
+static const int SECS_PER_MIN = 60;
+static const int SECS_PER_HOUR = 60 * 60;
+static const int SECS_PER_DAY = 24 * 60 * 60;
+static const int SECS_PER_WEEK = 7 * 24 * 60 * 60;
 
 /**
  * Days of the week as indexed by tm struct.
@@ -27,9 +48,9 @@ time_t normalise_week_to_monday(time_t to_normalise)
 
     time_t result = to_normalise;
     result -= tm_to_normalise.tm_sec;
-    result -= tm_to_normalise.tm_min * 60;
-    result -= tm_to_normalise.tm_hour * 3600;
-    result -= (tm_to_normalise.tm_wday - 1) * 24 * 3600;
+    result -= tm_to_normalise.tm_min * SECS_PER_MIN;
+    result -= tm_to_normalise.tm_hour * SECS_PER_HOUR;
+    result -= (tm_to_normalise.tm_wday - 1) * SECS_PER_DAY;
 
     return result;
 }
@@ -127,7 +148,7 @@ int term_get_week(Term *term, time_t term_time)
 
     time_t start_normalised = normalise_week_to_monday(term->start_time_stamp);
     time_t interval = term_time - start_normalised;
-    int weeks = interval / 604800ll;
+    int weeks = interval / SECS_PER_WEEK;
     return weeks + 1;
 }
 
@@ -233,56 +254,79 @@ char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode)
     return term_time_string;
 }
 
+
 /**
- * UoYWeek is a small command line utility which outputs
+ * Term start and end times, hardcoded for now.
+ */
+static const time_t AUT_START = 1506297600l;
+static const time_t AUT_END = 1512086400l;
+static const time_t SPR_START = 1515369600l;
+static const time_t SPR_END = 1521158400l;
+static const time_t SUM_START = 1523836800l;
+static const time_t SUM_END = 1529625600l;
+
+/**
+ * UoYWeek C is a small command line utility which outputs
  * the current term/week number/day as per the
  * University of York timetabling.
  * 
  * Originally by Luke Moll
- * Adapted to from C++ to C by Jacob Allen
+ * Adapted from C++ to C by Jacob Allen
 */
 int main(int argc, char *argv[])
 {
     int fancy = argc == 2 && strncmp(argv[1], "--fancy", 8) == 0;
 
     time_t now = time(0);
-    Term *aut = term_new("aut", (time_t)1506297600l, (time_t)1512086400l);
+    Term *aut = term_new("aut", AUT_START, AUT_END);
     if (aut == NULL)
     {
         fprintf(stderr, "Could not create autumn term.\n");
         return 1;
     }
 
-    Term *spr = term_new("spr", (time_t)1515369600l, (time_t)1521158400l);
+    Term *spr = term_new("spr", SPR_START, SPR_END);
     if (spr == NULL)
     {
         fprintf(stderr, "Could not create spring term.\n");
         return 2;
     }
 
+    Term *sum = term_new("sum", SUM_START, SUM_END);
+    if (sum == NULL)
+    {
+        fprintf(stderr, "Could not create summer term.\n");
+        return 3;
+    }
+
     Terms *terms = terms_new();
     if (terms == NULL)
     {
         fprintf(stderr, "Could not create terms.\n");
-        return 3;
+        return 4;
     }
 
     if (terms_add(terms, aut))
     {
         fprintf(stderr, "Could not add autumn term to terms.\n");
-        return 4;
+        return 5;
     }
     if (terms_add(terms, spr))
     {
         fprintf(stderr, "Could not add spring term to terms.\n");
-        return 5;
+        return 6;
+    }
+    if (terms_add(terms, sum))
+    {
+        fprintf(stderr, "Could not add summer term to terms.\n");
+        return 7;
     }
 
     char *term_string = terms_get_term_string(terms, now, fancy);
     if (term_string == NULL)
     {
         fprintf(stderr, "Could get term string.\n");
-        return 6;
+        return 8;
     }
     printf("%s", term_string);
 
