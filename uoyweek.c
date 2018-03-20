@@ -8,7 +8,7 @@
  * Deal with Windows crying about deprecation.
  */
 #ifdef _WIN32
-  #define _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
 #endif
 
 #include <stdlib.h>
@@ -21,9 +21,9 @@
 /**
  * Useful time constants to avoid magic numbers.
  */
-static const long SECS_PER_MIN  = 60;
+static const long SECS_PER_MIN = 60;
 static const long SECS_PER_HOUR = 60 * 60;
-static const long SECS_PER_DAY  = 60 * 60 * 24;
+static const long SECS_PER_DAY = 60 * 60 * 24;
 static const long SECS_PER_WEEK = 60 * 60 * 24 * 7;
 
 /**
@@ -45,7 +45,7 @@ time_t normalise_week_to_monday(time_t to_normalise)
 {
     struct tm tm_to_normalise;
     time_t result;
-    
+
     memcpy(&tm_to_normalise, gmtime(&to_normalise), sizeof(struct tm));
 
     result = to_normalise;
@@ -80,14 +80,14 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
     Term *new_term;
     struct tm start;
     struct tm end;
-    
+
     /* Not using strnlen/strlen_s here to get around the fact it's not always available, even in C11 */
     if (code_name[3] == 0 && strlen(code_name) != 3)
         return NULL;
 
     new_term = (Term *)malloc(sizeof(Term));
     if (new_term == NULL)
-        return NULL; 
+        return NULL;
 
     new_term->code_name = (char *)malloc(sizeof(char) * 4);
     if (new_term->code_name == NULL)
@@ -113,7 +113,7 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
  */
 int term_contains_time(Term *term, time_t ts)
 {
-    if(term == NULL)
+    if (term == NULL)
         return 0;
 
     return term->start_time_stamp <= ts && ts <= term->end_time_stamp;
@@ -129,7 +129,7 @@ char *term_to_string(Term *term)
     char start_string[64];
     char end_string[64];
 
-    if(term == NULL)
+    if (term == NULL)
         return NULL;
 
     term_string = (char *)malloc(sizeof(char) * 128);
@@ -153,7 +153,7 @@ int term_get_week(Term *term, time_t term_time)
     time_t interval;
     int weeks;
 
-    if(term == NULL)
+    if (term == NULL)
         return 0;
 
     start_normalised = normalise_week_to_monday(term->start_time_stamp);
@@ -178,7 +178,7 @@ typedef struct Terms
 Terms *terms_new()
 {
     Terms *terms_new;
-    
+
     terms_new = malloc(sizeof(Terms));
     if (terms_new == NULL)
         return NULL;
@@ -194,7 +194,7 @@ Terms *terms_new()
  */
 int terms_add(Terms *terms, Term *new_term)
 {
-    if(new_term == NULL || terms == NULL)
+    if (new_term == NULL || terms == NULL)
         return 1;
 
     terms->term_count += 1;
@@ -218,8 +218,8 @@ int terms_add(Terms *terms, Term *new_term)
 Term *terms_get_term_from_time(Terms *terms, time_t term_time)
 {
     size_t term_counter;
-    
-    if(terms == NULL)
+
+    if (terms == NULL)
         return NULL;
 
     term_counter = 0;
@@ -237,16 +237,16 @@ Term *terms_get_term_from_time(Terms *terms, time_t term_time)
  * a time. Has a fancy mode which capitalises nicely.
  * Returns NULL if time is not in a term, or on error.
  */
-char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode)
+char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode, int short_mode)
 {
     Term *term;
-    struct tm gm_now;    
+    struct tm gm_now;
     char day[10];
     char term_code[4];
     char *term_time_string;
     int week;
 
-    if(terms == NULL)
+    if (terms == NULL)
         return NULL;
 
     term = terms_get_term_from_time(terms, term_time);
@@ -261,17 +261,20 @@ char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode)
 
     strncpy(term_code, term->code_name, 4);
 
-    if(fancy_mode){
+    if (fancy_mode)
+    {
         term_code[0] = toupper(term_code[0]);
         day[0] = toupper(day[0]);
     }
+
+    if(short_mode)
+        day[3] = '\0';
 
     term_time_string = (char *)malloc(sizeof(char) * 17);
     snprintf(term_time_string, 17, "%s/%d/%s", term_code, week, day);
 
     return term_time_string;
 }
-
 
 /**
  * Term start and end times, hardcoded for now.
@@ -293,7 +296,9 @@ static const time_t SUM_END = 1529625600l;
 */
 int main(int argc, char *argv[])
 {
-    int fancy;
+    int arg_counter;
+    int flag_fancy;
+    int flag_short;
     Term *aut;
     Term *spr;
     Term *sum;
@@ -301,7 +306,22 @@ int main(int argc, char *argv[])
     time_t now;
     char *term_string;
 
-    fancy = argc == 2 && strncmp(argv[1], "--fancy", 8) == 0;
+    flag_fancy = 0;
+    flag_short = 0;
+    if (argc > 1)
+    {
+        for (arg_counter = 1; arg_counter < argc; arg_counter++)
+        {
+            if (!flag_fancy && (strncmp(argv[arg_counter], "--fancy", 8) == 0))
+            {
+                flag_fancy = 1;
+            }
+            else if (!flag_short && (strncmp(argv[arg_counter], "--short", 8) == 0))
+            {
+                flag_short = 1;
+            }
+        }
+    }
 
     now = time(0);
     aut = term_new("aut", AUT_START, AUT_END);
@@ -348,7 +368,7 @@ int main(int argc, char *argv[])
         return 7;
     }
 
-    term_string = terms_get_term_string(terms, now, fancy);
+    term_string = terms_get_term_string(terms, now, flag_fancy, flag_short);
     if (term_string == NULL)
     {
         fprintf(stderr, "Could not get term string.\n");
