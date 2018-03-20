@@ -21,10 +21,10 @@
 /**
  * Useful time constants to avoid magic numbers.
  */
-static const int SECS_PER_MIN = 60;
-static const int SECS_PER_HOUR = 60 * 60;
-static const int SECS_PER_DAY = 24 * 60 * 60;
-static const int SECS_PER_WEEK = 7 * 24 * 60 * 60;
+static const long SECS_PER_MIN  = 60;
+static const long SECS_PER_HOUR = 60 * 60;
+static const long SECS_PER_DAY  = 60 * 60 * 24;
+static const long SECS_PER_WEEK = 60 * 60 * 24 * 7;
 
 /**
  * Days of the week as indexed by tm struct.
@@ -44,9 +44,11 @@ const char DAYS[7][10] = {
 time_t normalise_week_to_monday(time_t to_normalise)
 {
     struct tm tm_to_normalise;
+    time_t result;
+    
     memcpy(&tm_to_normalise, gmtime(&to_normalise), sizeof(struct tm));
 
-    time_t result = to_normalise;
+    result = to_normalise;
     result -= tm_to_normalise.tm_sec;
     result -= tm_to_normalise.tm_min * SECS_PER_MIN;
     result -= tm_to_normalise.tm_hour * SECS_PER_HOUR;
@@ -75,11 +77,15 @@ typedef struct Term
  */
 Term *term_new(char *code_name, time_t start_time, time_t end_time)
 {
-    // Not using strnlen/strlen_s here to get around the fact it's not always available, even in C11
+    Term *new_term;
+    struct tm start;
+    struct tm end;
+    
+    /* Not using strnlen/strlen_s here to get around the fact it's not always available, even in C11 */
     if (code_name[3] == 0 && strlen(code_name) != 3)
         return NULL;
 
-    Term *new_term = (Term *)malloc(sizeof(Term));
+    new_term = (Term *)malloc(sizeof(Term));
     if (new_term == NULL)
         return NULL; 
 
@@ -91,10 +97,8 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
     new_term->start_time_stamp = start_time;
     new_term->end_time_stamp = end_time;
 
-    struct tm start;
     memcpy(&start, gmtime(&start_time), sizeof(struct tm));
 
-    struct tm end;
     memcpy(&end, gmtime(&end_time), sizeof(struct tm));
 
     new_term->start = start;
@@ -121,15 +125,17 @@ int term_contains_time(Term *term, time_t ts)
  */
 char *term_to_string(Term *term)
 {
+    char *term_string;
+    char start_string[64];
+    char end_string[64];
+
     if(term == NULL)
         return NULL;
 
-    char *term_string = (char *)malloc(sizeof(char) * 128);
+    term_string = (char *)malloc(sizeof(char) * 128);
 
-    char start_string[64];
     strncpy(start_string, asctime(&term->start), 64);
 
-    char end_string[64];
     strncpy(end_string, asctime(&term->end), 64);
 
     snprintf(term_string, 128, "%s (%d-%d) %s %s", term->code_name, ((&term->start)->tm_year + 1900), ((&term->end)->tm_year + 1900), start_string, end_string);
@@ -143,12 +149,16 @@ char *term_to_string(Term *term)
  */
 int term_get_week(Term *term, time_t term_time)
 {
+    time_t start_normalised;
+    time_t interval;
+    int weeks;
+
     if(term == NULL)
         return 0;
 
-    time_t start_normalised = normalise_week_to_monday(term->start_time_stamp);
-    time_t interval = term_time - start_normalised;
-    int weeks = interval / SECS_PER_WEEK;
+    start_normalised = normalise_week_to_monday(term->start_time_stamp);
+    interval = term_time - start_normalised;
+    weeks = interval / SECS_PER_WEEK;
     return weeks + 1;
 }
 
@@ -167,7 +177,9 @@ typedef struct Terms
  */
 Terms *terms_new()
 {
-    Terms *terms_new = malloc(sizeof(Terms));
+    Terms *terms_new;
+    
+    terms_new = malloc(sizeof(Terms));
     if (terms_new == NULL)
         return NULL;
 
@@ -205,10 +217,12 @@ int terms_add(Terms *terms, Term *new_term)
  */
 Term *terms_get_term_from_time(Terms *terms, time_t term_time)
 {
+    size_t term_counter;
+    
     if(terms == NULL)
         return NULL;
 
-    int term_counter = 0;
+    term_counter = 0;
     while (term_counter < terms->term_count)
     {
         if (term_contains_time(terms->terms[term_counter], term_time))
@@ -225,22 +239,26 @@ Term *terms_get_term_from_time(Terms *terms, time_t term_time)
  */
 char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode)
 {
+    Term *term;
+    struct tm gm_now;    
+    char day[10];
+    char term_code[4];
+    char *term_time_string;
+    int week;
+
     if(terms == NULL)
         return NULL;
 
-    Term *term = terms_get_term_from_time(terms, term_time);
+    term = terms_get_term_from_time(terms, term_time);
     if (term == NULL)
         return NULL;
 
-    int week = term_get_week(term, term_time);
+    week = term_get_week(term, term_time);
 
-    struct tm gm_now;
     memcpy(&gm_now, gmtime(&term_time), sizeof(struct tm));
 
-    char day[10];
     strncpy(day, DAYS[gm_now.tm_wday], 10);
 
-    char term_code[4];
     strncpy(term_code, term->code_name, 4);
 
     if(fancy_mode){
@@ -248,7 +266,7 @@ char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode)
         day[0] = toupper(day[0]);
     }
 
-    char *term_time_string = (char *)malloc(sizeof(char) * 17);
+    term_time_string = (char *)malloc(sizeof(char) * 17);
     snprintf(term_time_string, 17, "%s/%d/%s", term_code, week, day);
 
     return term_time_string;
@@ -275,31 +293,39 @@ static const time_t SUM_END = 1529625600l;
 */
 int main(int argc, char *argv[])
 {
-    int fancy = argc == 2 && strncmp(argv[1], "--fancy", 8) == 0;
+    int fancy;
+    Term *aut;
+    Term *spr;
+    Term *sum;
+    Terms *terms;
+    time_t now;
+    char *term_string;
 
-    time_t now = time(0);
-    Term *aut = term_new("aut", AUT_START, AUT_END);
+    fancy = argc == 2 && strncmp(argv[1], "--fancy", 8) == 0;
+
+    now = time(0);
+    aut = term_new("aut", AUT_START, AUT_END);
     if (aut == NULL)
     {
         fprintf(stderr, "Could not create autumn term.\n");
         return 1;
     }
 
-    Term *spr = term_new("spr", SPR_START, SPR_END);
+    spr = term_new("spr", SPR_START, SPR_END);
     if (spr == NULL)
     {
         fprintf(stderr, "Could not create spring term.\n");
         return 2;
     }
 
-    Term *sum = term_new("sum", SUM_START, SUM_END);
+    sum = term_new("sum", SUM_START, SUM_END);
     if (sum == NULL)
     {
         fprintf(stderr, "Could not create summer term.\n");
         return 3;
     }
 
-    Terms *terms = terms_new();
+    terms = terms_new();
     if (terms == NULL)
     {
         fprintf(stderr, "Could not create terms.\n");
@@ -322,10 +348,10 @@ int main(int argc, char *argv[])
         return 7;
     }
 
-    char *term_string = terms_get_term_string(terms, now, fancy);
+    term_string = terms_get_term_string(terms, now, fancy);
     if (term_string == NULL)
     {
-        fprintf(stderr, "Could get term string.\n");
+        fprintf(stderr, "Could not get term string.\n");
         return 8;
     }
     printf("%s", term_string);
