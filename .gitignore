@@ -4,3 +4,5 @@
 !.git*
 !README.md
 !LICENSE
+!Makefile
+!terms.txt
