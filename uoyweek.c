@@ -17,6 +17,7 @@
 #include <string.h>
 #include <errno.h>
 #include <ctype.h>
+#include <sys/stat.h>
 
 /**
  * Useful time constants to avoid magic numbers.
@@ -92,7 +93,7 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
     new_term->code_name = (char *)malloc(sizeof(char) * 4);
     if (new_term->code_name == NULL)
         return NULL;
-    new_term->code_name = code_name;
+    strncpy(new_term->code_name, code_name, 4);
 
     new_term->start_time_stamp = start_time;
     new_term->end_time_stamp = end_time;
@@ -101,8 +102,8 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
 
     memcpy(&end, gmtime(&end_time), sizeof(struct tm));
 
-    new_term->start = start;
-    new_term->end = end;
+    memcpy(&(new_term->start), &start, sizeof(start));
+    memcpy(&(new_term->end), &end, sizeof(end));
 
     return new_term;
 }
@@ -212,6 +213,86 @@ int terms_add(Terms *terms, Term *new_term)
 }
 
 /**
+ * Creates a new set of terms on the heap, from file, and
+ * returns a pointer to it, or returns NULL on error.
+ */
+Terms *terms_new_from_file(char *file_name)
+{
+    Terms *terms;
+    int r;
+    char term_code[4];
+    int start_year;
+    int start_month;
+    int start_day;
+    int end_year;
+    int end_month;
+    int end_day;
+    int line;
+    Term *line_term;
+    struct tm line_term_start;
+    struct tm line_term_end;
+    FILE *fp;
+
+    line_term_start.tm_sec = 0;
+    line_term_start.tm_min = 0;
+    line_term_start.tm_hour = 0;
+    line_term_start.tm_isdst = -1;
+    line_term_end.tm_sec = 0;
+    line_term_end.tm_min = 0;
+    line_term_end.tm_hour = 0;
+    line_term_end.tm_isdst = -1;
+
+    line = 1;
+
+    fp = fopen(file_name, "r");
+
+    if (fp == NULL)
+    {
+        fprintf(stderr, "Could not open file.\n");
+        return NULL;
+    }
+
+    if ((terms = terms_new()) == NULL)
+    {
+        fprintf(stderr, "Could not create terms struct.\n");
+        return NULL;
+    }
+
+    r = fscanf(fp, "%3s %4d-%2d-%2d %4d-%2d-%2d\n", term_code, &start_year, &start_month, &start_day, &end_year, &end_month, &end_day);
+    while (r != EOF)
+    {
+        if (r == 7)
+        {
+            line_term_start.tm_year = start_year - 1900;
+            line_term_start.tm_mon = start_month - 1;
+            line_term_start.tm_mday = start_day;
+            line_term_end.tm_year = end_year - 1900;
+            line_term_end.tm_mon = end_month - 1;
+            line_term_end.tm_mday = end_day;
+            term_code[3] = '\0';
+            if((line_term = term_new(term_code, mktime(&line_term_start), mktime(&line_term_end))) == NULL){
+                fprintf(stderr, "Failed to create new term.");
+                return NULL;   
+            }
+            if(terms_add(terms, line_term) > 0){
+                fprintf(stderr, "Failed to add new term.");
+                return NULL;
+            }
+        }
+        else
+        {
+            fprintf(stderr, "Warning: incorrect format on line %d of terms file.\n", line);
+        }
+        r = fscanf(fp, "%3s %4d-%2d-%2d %4d-%2d-%2d\n", term_code, &start_year, &start_month, &start_day, &end_year, &end_month, &end_day);
+        line++;
+    }
+
+    fclose(fp);
+
+    return terms;
+}
+
+/**
  * Find the term that contains the specified time from a
  * set of terms. Returns NULL if not found, or on error.
  */
@@ -267,7 +348,7 @@ char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode, int 
         day[0] = toupper(day[0]);
     }
 
-    if(short_mode)
+    if (short_mode)
         day[3] = '\0';
 
     term_time_string = (char *)malloc(sizeof(char) * 17);
@@ -299,15 +380,19 @@ int main(int argc, char *argv[])
     int arg_counter;
     int flag_fancy;
     int flag_short;
-    Term *aut;
-    Term *spr;
-    Term *sum;
+    int terms_file_specified;
+    int terms_file_exists;
     Terms *terms;
     time_t now;
     char *term_string;
+    char *input_terms_file_name;
+    char *terms_file_name;
+    struct stat file_check_results;
 
     flag_fancy = 0;
     flag_short = 0;
+    terms_file_specified = 0;
+    terms_file_exists = 0;
     if (argc > 1)
     {
         for (arg_counter = 1; arg_counter < argc; arg_counter++)
@@ -319,60 +404,49 @@ int main(int argc, char *argv[])
             else if (!flag_short && (strncmp(argv[arg_counter], "--short", 8) == 0))
             {
                 flag_short = 1;
+            }else if(!terms_file_specified) {
+                input_terms_file_name = argv[arg_counter];
+                terms_file_specified = 1;
+            }else{
+                fprintf(stderr, "Multiple terms files provided, but only one is allowed.\n");
+                return 3;
             }
         }
     }
 
-    now = time(0);
-    aut = term_new("aut", AUT_START, AUT_END);
-    if (aut == NULL)
+    if(terms_file_specified){
+        if(stat(input_terms_file_name, &file_check_results) < 0){
+            fprintf(stderr, "Specified terms file not found.\n");
+            return 4;
+        }else{
+            terms_file_exists = 1;
+            terms_file_name = input_terms_file_name;
+        }
+    }else{
+        if(stat("terms.txt", &file_check_results) > -1){
+            terms_file_name = "terms.txt";
+            terms_file_exists = 1;
+        }
+    }
+
+    if(!terms_file_exists){
+        fprintf(stderr, "No specified terms file and no file found in default locations.\n");
+        return 5;
+    }
+
+    if ((terms = terms_new_from_file(terms_file_name)) == NULL)
     {
-        fprintf(stderr, "Could not create autumn term.\n");
+        fprintf(stderr, "Failed to read terms from file.\n");
         return 1;
     }
 
-    spr = term_new("spr", SPR_START, SPR_END);
-    if (spr == NULL)
-    {
-        fprintf(stderr, "Could not create spring term.\n");
-        return 2;
-    }
-
-    sum = term_new("sum", SUM_START, SUM_END);
-    if (sum == NULL)
-    {
-        fprintf(stderr, "Could not create summer term.\n");
-        return 3;
-    }
-
-    terms = terms_new();
-    if (terms == NULL)
-    {
-        fprintf(stderr, "Could not create terms.\n");
-        return 4;
-    }
-
-    if (terms_add(terms, aut))
-    {
-        fprintf(stderr, "Could not add autumn term to terms.\n");
-        return 5;
-    }
-    if (terms_add(terms, spr))
-    {
-        fprintf(stderr, "Could not add spring term to terms.\n");
-        return 6;
-    }
-    if (terms_add(terms, sum))
-    {
-        fprintf(stderr, "Could not add summer term to terms.\n");
-        return 7;
-    }
+    now = time(0);
 
     term_string = terms_get_term_string(terms, now, flag_fancy, flag_short);
     if (term_string == NULL)
     {
         fprintf(stderr, "Could not get term string.\n");
-        return 8;
+        return 2;
     }
     printf("%s", term_string);
 
