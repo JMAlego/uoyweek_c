@@ -79,8 +79,6 @@ typedef struct Term
 Term *term_new(char *code_name, time_t start_time, time_t end_time)
 {
     Term *new_term;
-    struct tm start;
-    struct tm end;
 
     /* Not using strnlen/strlen_s here to get around the fact it's not always available, even in C11 */
     if (code_name[3] == 0 && strlen(code_name) != 3)
@@ -98,12 +96,8 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
     new_term->start_time_stamp = start_time;
     new_term->end_time_stamp = end_time;
 
-    memcpy(&start, gmtime(&start_time), sizeof(struct tm));
-
-    memcpy(&end, gmtime(&end_time), sizeof(struct tm));
-
-    memcpy(&(new_term->start), &start, sizeof(start));
-    memcpy(&(new_term->end), &end, sizeof(end));
+    memcpy(&(new_term->start), gmtime(&start_time), sizeof(struct tm));
+    memcpy(&(new_term->end), gmtime(&end_time), sizeof(struct tm));
 
     return new_term;
 }
