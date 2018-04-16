@@ -228,19 +228,19 @@ Terms *terms_new_from_file(char *file_name)
     int end_month;
     int end_day;
     int line;
-    Term *line_term;
     struct tm line_term_start;
     struct tm line_term_end;
+    Term *line_term;
     FILE *fp;
 
+    line_term_start.tm_isdst = -1;
     line_term_start.tm_sec = 0;
     line_term_start.tm_min = 0;
     line_term_start.tm_hour = 0;
-    line_term_start.tm_isdst = -1;
+    line_term_end.tm_isdst = -1;
     line_term_end.tm_sec = 0;
     line_term_end.tm_min = 0;
     line_term_end.tm_hour = 0;
-    line_term_end.tm_isdst = -1;
 
     line = 1;
 
@@ -263,6 +263,13 @@ Terms *terms_new_from_file(char *file_name)
     {
         if (r == 7)
         {
+            /**
+             *  Need to reset isdst every loop due to mktime being "clever" by
+             *  overwriting the isdst value when it thinks it knows better...
+             */
+            line_term_start.tm_isdst = -1;
+            line_term_end.tm_isdst = -1;
+
             line_term_start.tm_year = start_year - 1900;
             line_term_start.tm_mon = start_month - 1;
             line_term_start.tm_mday = start_day;
@@ -270,11 +277,13 @@ Terms *terms_new_from_file(char *file_name)
             line_term_end.tm_mon = end_month - 1;
             line_term_end.tm_mday = end_day;
             term_code[3] = '\0';
-            if((line_term = term_new(term_code, mktime(&line_term_start), mktime(&line_term_end))) == NULL){
+            if ((line_term = term_new(term_code, mktime(&line_term_start), mktime(&line_term_end))) == NULL)
+            {
                 fprintf(stderr, "Failed to create new term.");
-                return NULL;   
+                return NULL;
             }
-            if(terms_add(terms, line_term) > 0){
+            if (terms_add(terms, line_term) > 0)
+            {
                 fprintf(stderr, "Failed to add new term.");
                 return NULL;
             }
@@ -358,16 +367,6 @@ char *terms_get_term_string(Terms *terms, time_t term_time, int fancy_mode, int 
 }
 
 /**
- * Term start and end times, hardcoded for now.
- */
-static const time_t AUT_START = 1506297600l;
-static const time_t AUT_END = 1512086400l;
-static const time_t SPR_START = 1515369600l;
-static const time_t SPR_END = 1521158400l;
-static const time_t SUM_START = 1523836800l;
-static const time_t SUM_END = 1529625600l;
-
-/**
  * UoYWeek C is a small command line utility which outputs
  * the current term/week number/day as per the
  * University of York timetabling.
@@ -404,32 +403,44 @@ int main(int argc, char *argv[])
             else if (!flag_short && (strncmp(argv[arg_counter], "--short", 8) == 0))
             {
                 flag_short = 1;
-            }else if(!terms_file_specified) {
+            }
+            else if (!terms_file_specified)
+            {
                 input_terms_file_name = argv[arg_counter];
                 terms_file_specified = 1;
-            }else{
+            }
+            else
+            {
                 fprintf(stderr, "Multiple terms files provided, but only one is allowed.\n");
                 return 3;
             }
         }
     }
 
-    if(terms_file_specified){
-        if(stat(input_terms_file_name, &file_check_results) < 0){
+    if (terms_file_specified)
+    {
+        if (stat(input_terms_file_name, &file_check_results) < 0)
+        {
             fprintf(stderr, "Specified terms file not found.\n");
             return 4;
-        }else{
+        }
+        else
+        {
             terms_file_exists = 1;
             terms_file_name = input_terms_file_name;
         }
-    }else{
-        if(stat("terms.txt", &file_check_results) > -1){
+    }
+    else
+    {
+        if (stat("terms.txt", &file_check_results) > -1)
+        {
             terms_file_name = "terms.txt";
             terms_file_exists = 1;
         }
     }
 
-    if(!terms_file_exists){
+    if (!terms_file_exists)
+    {
         fprintf(stderr, "No specified terms file and no file found in default locations.\n");
         return 5;
     }
