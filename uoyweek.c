@@ -103,6 +103,16 @@ Term *term_new(char *code_name, time_t start_time, time_t end_time)
 }
 
 /**
+ * Cleans up the specified term and frees it.
+ * Does not return.
+ */
+void term_free(Term *term)
+{
+    free(term->code_name);
+    free(term);
+}
+
+/**
  * Checks if the specified time is within the specified
  * terms start and end times. Returns 0 on error.
  */
@@ -182,6 +192,24 @@ Terms *terms_new()
     terms_new->terms = NULL;
 
     return terms_new;
+}
+
+/**
+ * Cleans up the specified terms and frees it
+ * and all the term structs stored in it.
+ * Does not return.
+ */
+void terms_free(Terms *terms)
+{
+    size_t term_counter;
+
+    term_counter = terms->term_count;
+    while (term_counter > 0)
+    {
+        term_free(terms->terms[term_counter - 1]);
+        term_counter--;
+    }
+    free(terms);
 }
 
 /**
@@ -454,6 +482,9 @@ int main(int argc, char *argv[])
         return 2;
     }
     printf("%s", term_string);
+
+    terms_free(terms);
+    free(term_string);
 
     return 0;
 }
