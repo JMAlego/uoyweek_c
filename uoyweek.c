@@ -401,6 +401,7 @@ int main(int argc, char *argv[])
     int arg_counter;
     int flag_fancy;
     int flag_short;
+    int holiday;
     int terms_file_specified;
     int terms_file_exists;
     Terms *terms;
@@ -412,6 +413,7 @@ int main(int argc, char *argv[])
 
     flag_fancy = 0;
     flag_short = 0;
+    holiday = 0;
     terms_file_specified = 0;
     terms_file_exists = 0;
     if (argc > 1)
@@ -434,7 +436,7 @@ int main(int argc, char *argv[])
             else
             {
                 fprintf(stderr, "Multiple terms files provided, but only one is allowed.\n");
-                return 3;
+                return 2;
             }
         }
     }
@@ -444,7 +446,7 @@ int main(int argc, char *argv[])
         if (stat(input_terms_file_name, &file_check_results) < 0)
         {
             fprintf(stderr, "Specified terms file not found.\n");
-            return 4;
+            return 3;
         }
         else
         {
@@ -464,7 +466,7 @@ int main(int argc, char *argv[])
     if (!terms_file_exists)
     {
         fprintf(stderr, "No specified terms file and no file found in default locations.\n");
-        return 5;
+        return 4;
     }
 
     if ((terms = terms_new_from_file(terms_file_name)) == NULL)
@@ -478,13 +480,26 @@ int main(int argc, char *argv[])
     term_string = terms_get_term_string(terms, now, flag_fancy, flag_short);
     if (term_string == NULL)
     {
-        fprintf(stderr, "Could not get term string.\n");
-        return 2;
+        /* Assume that if we can't find the term it's a holiday! */
+        holiday = 1;
     }
-    printf("%s", term_string);
-
+    if (holiday)
+    {
+        if (flag_fancy)
+            putc('H', stdout);
+        else
+            putc('h', stdout);
+        if (flag_short)
+            puts("ol");
+        else
+            puts("oliday");
+    }
+    else
+    {
+        printf("%s", term_string);
+        free(term_string);
+    }
     terms_free(terms);
-    free(term_string);
 
     return 0;
 }
