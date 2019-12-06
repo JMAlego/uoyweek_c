@@ -5,9 +5,6 @@ target := uoyweek
 
 .PHONY: all run install clean
 
-%: %.cpp
-	$(CC) $(CFLAGS) -o $@ $<
-
 all: $(target)
 
 run: $(target)
