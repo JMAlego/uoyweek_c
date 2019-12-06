@@ -1,3 +1,5 @@
+# The start date is inclusive, but the end date is exclusive.
+
 aut 2017-09-25 2017-12-01
 spr 2018-01-08 2018-03-16
 sum 2018-04-16 2018-06-22
